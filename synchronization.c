@@ -1,43 +1,20 @@
 /* ************************************************************************** */
 /*                                                                            */
 /*                                                        :::      ::::::::   */
-/*   philo.c                                            :+:      :+:    :+:   */
+/*   synchronization.c                                  :+:      :+:    :+:   */
 /*                                                    +:+ +:+         +:+     */
 /*   By: nhaber <nhaber@student.42.fr>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2025/06/27 19:23:39 by nhaber            #+#    #+#             */
-/*   Updated: 2025/07/12 12:59:30 by nhaber           ###   ########.fr       */
+/*   Created: 2025/06/30 10:09:17 by nhaber            #+#    #+#             */
+/*   Updated: 2025/07/02 21:10:22 by nhaber           ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
-
 #include "philo.h"
 
-int main(int argc, char **argv)
+void thread_wait(t_data *data)
 {
-	t_data *data;
-
-	if (!(argc == 5 || argc == 6))
-	{
-		printf("Usage: %s num_philos time_to_die time_to_eat time_to_sleep [meals]\n", argv[0]);
-		return (-1);
-	}
-
-	else
-	{
-		data = malloc(sizeof(t_data));  // FIX: You MUST allocate this!
-		if (!data)
-			return (1);
-
-		if (!parse_input(data, argv))
-			return (1);
-
-		init_data(data);
-		start_simulation(data);
-
-		free(data);
-	}
-	return (0);
+    while (!get_boolean(&data->data_mutex,&data->threads_sync))
+        ;
+    
 }
-
-

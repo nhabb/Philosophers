@@ -6,7 +6,7 @@
 /*   By: nhaber <nhaber@student.42.fr>              +#+  +:+       +#+        */
 /*                                                +#+#+#+#+#+   +#+           */
 /*   Created: 2025/06/27 19:18:03 by nhaber            #+#    #+#             */
-/*   Updated: 2025/06/28 22:03:17 by nhaber           ###   ########.fr       */
+/*   Updated: 2025/07/12 12:59:32 by nhaber           ###   ########.fr       */
 /*                                                                            */
 /* ************************************************************************** */
 
@@ -19,9 +19,10 @@
 #include <limits.h>
 # include <stdbool.h>
 # include <unistd.h>
+#include <errno.h>
 # include <stdlib.h>
 # include <stdio.h>
-
+#define DEBU_STAT 0
 typedef pthread_mutex_t mtx;
 typedef struct s_philo t_philo;
 
@@ -39,8 +40,11 @@ typedef struct s_data
 	long	num_meals;
 	long	sim_start;
 	bool	sim_end;
+	bool	threads_sync;
 	t_fork	*forks;
 	t_philo	*philos;
+	mtx		data_mutex;
+	mtx		wrt_mutex;
 }t_data;
 
 
@@ -49,25 +53,62 @@ typedef struct s_philo {
 	int			id;
 	long		meal_counter;
 	bool		full;
-	t_fork		*left;
-	t_fork		*right;
+	t_fork		*primray;
+	t_fork		*secondary;
 	pthread_t	thread_id;
-	long long	last_meal_t;
+	long	last_meal_t;
 	t_data		*data;
+	mtx			philo_mutex;
 } t_philo;
 
-long long get_time_ms(void);
-bool parse_input(t_data *data,char **argv);
+typedef enum s_opcode
+{
+	LOCK,
+	UNLOCK,
+	INIT,
+	DESTROY,
+	CREATE,
+	JOIN,
+	DETACH,
+} t_opcode;
+
+typedef enum e_stat
+{
+	EATING,
+	SLEEPING,
+	THINKING,
+	TAKE_FIRST,
+	TAKE_SECOND,
+	DIED	
+}	t_philo_stat;
+
+
+long get_timestamp(void);
+bool parse_input(t_data *data, char **argv);
 long   ft_atol(const char *str);
 bool	ft_isdigit(int c);
-static const char *is_valid(const char *str);
-void init_data(t_data *args, int argc, char **argv);
-void init_forks(t_data *args, int i);
-void init_philos(t_philo *philos, t_data *args, int i);
-void join_philos(t_philo *philos, int count, int i);
-void destroy_forks(t_data *args, int i);
-void *philosopher_routine(void *arg);
-int	get_stop(t_data *args);
-void set_stop(t_data *args);
-
+const char *is_valid(const char *str);
+void *handle_malloc(size_t size);
+void handle_mutex(mtx *mutex, t_opcode opcode);
+static void handle_error(int status, t_opcode opcode);
+static bool handle_error_helper(int status,t_opcode opcode);
+static void thread_error(int status, t_opcode opcode);
+static bool thread_error_helper(int status, t_opcode opcode);
+void handle_thread(pthread_t *thread,void *(*foo)(void *)
+                ,void *data, t_opcode opcode);
+void init_data(t_data *data);
+static void init_philo(t_data *data);
+static void take_forks(t_philo *philo,t_fork *forks,int pos);
+void set_boolean(mtx *mutex,bool *dest,bool val);
+bool get_boolean(mtx *mutex,bool *val);
+void set_long(mtx *mutex,long *dest,long val);
+long get_long(mtx *mutex,long *val);
+bool    sim_finished(t_data *data);
+void thread_wait(t_data *data);
+long get_timestamp(void);
+void    ft_usleep(long usec,t_data *data);
+void    wrt_stat(t_philo_stat stat,t_philo *philo,bool debug);
+void philo_eat(t_philo *philo);
+void philo_think(t_philo *philo);
+void start_simulation(t_data *data);
 #endif

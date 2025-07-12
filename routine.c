@@ -1,98 +1,78 @@
-// /* ************************************************************************** */
-// /*                                                                            */
-// /*                                                        :::      ::::::::   */
-// /*   routine.c                                          :+:      :+:    :+:   */
-// /*                                                    +:+ +:+         +:+     */
-// /*   By: nhaber <nhaber@student.42.fr>              +#+  +:+       +#+        */
-// /*                                                +#+#+#+#+#+   +#+           */
-// /*   Created: 2025/06/27 19:22:08 by nhaber            #+#    #+#             */
-// /*   Updated: 2025/06/28 14:56:15 by nhaber           ###   ########.fr       */
-// /*                                                                            */
-// /* ************************************************************************** */
+/* ************************************************************************** */
+/*                                                                            */
+/*                                                        :::      ::::::::   */
+/*   routine.c                                          :+:      :+:    :+:   */
+/*                                                    +:+ +:+         +:+     */
+/*   By: nhaber <nhaber@student.42.fr>              +#+  +:+       +#+        */
+/*                                                +#+#+#+#+#+   +#+           */
+/*   Created: 2025/06/27 19:22:08 by nhaber            #+#    #+#             */
+/*   Updated: 2025/07/12 12:59:44 by nhaber           ###   ########.fr       */
+/*                                                                            */
+/* ************************************************************************** */
 
-// #include "philo.h"
+#include "philo.h"
 
-// long long get_time_ms(void)
-// {
-// 	struct timeval time;
-// 	gettimeofday(&time, NULL);
-// 	return (time.tv_sec * 1000LL) + (time.tv_usec / 1000);
-// }
-
-// void init_data(t_data *args, int argc, char **argv)
-// {
-// 	args->philo_count = atoi(argv[1]);
-// 	args->t_die = atoi(argv[2]);
-// 	args->t_eat = atoi(argv[3]);
-// 	args->t_sleep = atoi(argv[4]);
-//     if (argc == 6)
-//         args->meals_required = atoi(argv[5]);
-//     // else
-//     args->meals_required = -1;
-// 	args->forks = malloc(sizeof(pthread_mutex_t) * args->philo_count);
-// 	if (!args->forks)
-// 		exit(1);
-// }
-
-// void init_forks(t_data *args, int i)
-// {
-// 	if (i < args->philo_count)
-// 	{
-// 		pthread_mutex_init(&args->forks[i], NULL);
-// 		init_forks(args, i + 1);
-// 	}
-// }
-
-// void init_philos(t_philo *philos, t_data *args, int i)
-// {
-// 	if (i < args->philo_count)
-// 	{
-//         set_stop(args);
-// 		philos[i].id = i + 1;
-// 		philos[i].args = args;
-// 		philos[i].last_meal = get_time_ms();
-// 		philos[i].meals_eaten = 0;
-// 		pthread_create(&philos[i].thread, NULL, philosopher_routine, &philos[i]);
-// 		init_philos(philos, args, i + 1);
-// 	}
-// }
-
-// void join_philos(t_philo *philos, int count, int i)
-// {
-// 	if (i < count)
-// 	{
-// 		pthread_join(philos[i].thread, NULL);
-// 		join_philos(philos, count, i + 1);
-// 	}
-// }
-
-// void destroy_forks(t_data *args, int i)
-// {
-// 	if (i < args->philo_count)
-// 	{
-// 		pthread_mutex_destroy(&args->forks[i]);
-// 		destroy_forks(args, i + 1);
-// 	}
-// }
-
-// int get_stop(t_data *args)
-// {
-//     int val;
-//     pthread_mutex_lock(&args->stop_mutex);
-//     val = args->stop;
-//     pthread_mutex_unlock(&args->stop_mutex);
-//     return val;
-// }
-
-// void set_stop(t_data *args)
-// {
-//     pthread_mutex_lock(&args->stop_mutex);
-//     args->stop = 1;
-//     pthread_mutex_unlock(&args->stop_mutex);
-// }
+void philo_think(t_philo *philo)
+{
+    wrt_stat(THINKING,philo,DEBU_STAT);
+}
 
 
+void philo_eat(t_philo *philo)
+{
+    handle_mutex(&philo->primray->fork,LOCK);
+    wrt_stat(TAKE_FIRST,philo,DEBU_STAT);
+    handle_mutex(&philo->secondary->fork,LOCK);
+    wrt_stat(TAKE_SECOND,philo,DEBU_STAT);
+    set_long(&philo->philo_mutex,&philo->last_meal_t,get_timestamp());
+    philo->meal_counter++;
+    wrt_stat(EATING,philo,DEBU_STAT);
+    ft_usleep(philo->data->tte,philo->data);
+    if (philo->data->num_meals > 0 && philo->meal_counter == philo->data->num_meals)
+        set_boolean(&philo->philo_mutex, &philo->full,true);
+    handle_mutex(&philo->primray->fork,UNLOCK);
+    handle_mutex(&philo->secondary->fork,UNLOCK);
+}
+
+//wait for all philos,synchronize the threads
+void *routine(void *data)
+{
+    t_philo *philo;
+
+    philo = (t_philo *) data;
+    thread_wait(philo->data);
+    while (!sim_finished(data))
+    {
+        if (philo->full)
+            break;
+        philo_eat(philo);
+        wrt_stat(SLEEPING,philo,DEBU_STAT);
+        ft_usleep(philo->data->tts,philo->data);
+        philo_think(philo);
+    }
+    return NULL;
+}
 
 
+void start_simulation(t_data *data)
+{
+    int i;
 
+    i = -1;
+    if (data->num_meals == 0)
+        return ;
+    else if (data->num_philo == 1)
+        ;
+    else
+    {
+        while (++i < data->num_philo)
+            handle_thread(&data->philos[i].thread_id, routine, &data->philos[i], CREATE);
 
+    }
+    data->sim_start = get_timestamp();
+    set_boolean(&data->data_mutex,&data->threads_sync,true);
+    i = -1;
+    while (++i < data->num_philo)
+        handle_thread(&data->philos[i].thread_id,NULL,NULL,JOIN);
+    
+}
