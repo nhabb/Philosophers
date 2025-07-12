@@ -1,78 +1,244 @@
-/* ************************************************************************** */
-/*                                                                            */
-/*                                                        :::      ::::::::   */
-/*   routine.c                                          :+:      :+:    :+:   */
-/*                                                    +:+ +:+         +:+     */
-/*   By: nhaber <nhaber@student.42.fr>              +#+  +:+       +#+        */
-/*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2025/06/27 19:22:08 by nhaber            #+#    #+#             */
-/*   Updated: 2025/07/12 12:59:44 by nhaber           ###   ########.fr       */
-/*                                                                            */
-/* ************************************************************************** */
-
 #include "philo.h"
 
-void philo_think(t_philo *philo)
+
+void *philo_routine(void *arg)
 {
-    wrt_stat(THINKING,philo,DEBU_STAT);
-}
+    t_philo *philo = (t_philo *)arg;
+    t_mutex *first_fork;
+    t_mutex *second_fork;
+    
+    if (philo->id % 2 == 0) {
+        first_fork = philo->left_fork;
+        second_fork = philo->right_fork;
+    } else {
+        first_fork = philo->right_fork;
+        second_fork = philo->left_fork;
+    }
 
-
-void philo_eat(t_philo *philo)
-{
-    handle_mutex(&philo->primray->fork,LOCK);
-    wrt_stat(TAKE_FIRST,philo,DEBU_STAT);
-    handle_mutex(&philo->secondary->fork,LOCK);
-    wrt_stat(TAKE_SECOND,philo,DEBU_STAT);
-    set_long(&philo->philo_mutex,&philo->last_meal_t,get_timestamp());
-    philo->meal_counter++;
-    wrt_stat(EATING,philo,DEBU_STAT);
-    ft_usleep(philo->data->tte,philo->data);
-    if (philo->data->num_meals > 0 && philo->meal_counter == philo->data->num_meals)
-        set_boolean(&philo->philo_mutex, &philo->full,true);
-    handle_mutex(&philo->primray->fork,UNLOCK);
-    handle_mutex(&philo->secondary->fork,UNLOCK);
-}
-
-//wait for all philos,synchronize the threads
-void *routine(void *data)
-{
-    t_philo *philo;
-
-    philo = (t_philo *) data;
-    thread_wait(philo->data);
-    while (!sim_finished(data))
+    while (!simulation_ended(philo->data))
     {
-        if (philo->full)
+        // Take first fork
+        pthread_mutex_lock(first_fork);
+        print_status(philo, "has taken a fork");
+        
+        // Check if simulation ended while waiting for fork
+        if (simulation_ended(philo->data)) {
+            pthread_mutex_unlock(first_fork);
             break;
-        philo_eat(philo);
-        wrt_stat(SLEEPING,philo,DEBU_STAT);
-        ft_usleep(philo->data->tts,philo->data);
-        philo_think(philo);
+        }
+        
+        // Handle single philosopher case
+        if (philo->data->num_philos == 1) {
+            precise_sleep(philo->data->time_to_die);
+            pthread_mutex_unlock(first_fork);
+            break;
+        }
+        
+        // Take second fork
+        pthread_mutex_lock(second_fork);
+        print_status(philo, "has taken a fork");
+        
+        // Check if simulation ended while waiting for fork
+        if (simulation_ended(philo->data)) {
+            safe_unlock(first_fork, second_fork);
+            break;
+        }
+        
+        // Start eating
+        print_status(philo, "is eating");
+        
+        // Update meal tracking
+        pthread_mutex_lock(&philo->meal_mutex);
+        philo->last_meal = get_time_ms();
+        philo->meals_eaten++;
+        pthread_mutex_unlock(&philo->meal_mutex);
+        
+        // Eat for specified time
+        precise_sleep(philo->data->time_to_eat);
+        
+        // Release forks
+        pthread_mutex_unlock(first_fork);
+        pthread_mutex_unlock(second_fork);
+        
+        // Sleep and think
+        print_status(philo, "is sleeping");
+        precise_sleep(philo->data->time_to_sleep);
+        print_status(philo, "is thinking");
     }
     return NULL;
 }
 
+void *monitor_routine(void *arg)
+{
+    t_data *data = (t_data *)arg;
+    int i;
+    long current_time;
+    long last_meal;
+    bool all_full;
+    
+    while (!simulation_ended(data))
+    {
+        i = 0;
+        all_full = true;
+        while (i < data->num_philos)
+        {
+            pthread_mutex_lock(&data->philos[i].meal_mutex);
+            last_meal = data->philos[i].last_meal;
+            current_time = get_time_ms();
+            
+            // Check for death
+            if (current_time - last_meal > data->time_to_die)
+            {
+                pthread_mutex_lock(&data->print_mutex);
+                printf("%ld %d died\n", current_time - data->start_time, data->philos[i].id);
+                pthread_mutex_lock(&data->sim_mutex);
+                data->sim_end = true;
+                pthread_mutex_unlock(&data->sim_mutex);
+                pthread_mutex_unlock(&data->print_mutex);
+                pthread_mutex_unlock(&data->philos[i].meal_mutex);
+                return NULL;
+            }
+            
+            // Check meal completion
+            if (data->num_meals > 0 && data->philos[i].meals_eaten < data->num_meals)
+                all_full = false;
+            
+            pthread_mutex_unlock(&data->philos[i].meal_mutex);
+            i++;
+        }
+        
+        // Check if all philosophers have eaten enough
+        if (data->num_meals > 0 && all_full)
+        {
+            pthread_mutex_lock(&data->sim_mutex);
+            data->sim_end = true;
+            pthread_mutex_unlock(&data->sim_mutex);
+            return NULL;
+        }
+        
+        // Sleep to reduce CPU usage
+        usleep(1000);
+    }
+    return NULL;
+}
 
 void start_simulation(t_data *data)
 {
     int i;
-
-    i = -1;
-    if (data->num_meals == 0)
-        return ;
-    else if (data->num_philo == 1)
-        ;
-    else
-    {
-        while (++i < data->num_philo)
-            handle_thread(&data->philos[i].thread_id, routine, &data->philos[i], CREATE);
-
-    }
-    data->sim_start = get_timestamp();
-    set_boolean(&data->data_mutex,&data->threads_sync,true);
-    i = -1;
-    while (++i < data->num_philo)
-        handle_thread(&data->philos[i].thread_id,NULL,NULL,JOIN);
+    pthread_t monitor_thread;
     
+    // Create philosopher threads
+    i = -1;
+    while (++i < data->num_philos)
+        pthread_create(&data->philos[i].thread, NULL, philo_routine, &data->philos[i]);
+    
+    // Create monitor thread
+    pthread_create(&monitor_thread, NULL, monitor_routine, data);
+    
+    // Join philosopher threads
+    i = -1;
+    while (++i < data->num_philos)
+        pthread_join(data->philos[i].thread, NULL);
+    
+    // Join monitor thread
+    pthread_join(monitor_thread, NULL);
+}
+
+
+void	mutex_init(t_mutex *mutex)
+{
+	pthread_mutex_init(mutex, NULL);
+}
+
+void	mutex_destroy(t_mutex *mutex)
+{
+	pthread_mutex_destroy(mutex);
+}
+
+void	mutex_lock(t_mutex *mutex)
+{
+	pthread_mutex_lock(mutex);
+}
+
+void	mutex_unlock(t_mutex *mutex)
+{
+	pthread_mutex_unlock(mutex);
+}
+
+
+long	get_time_ms(void)
+{
+	struct timeval	tv;
+
+	gettimeofday(&tv, NULL);
+	return (tv.tv_sec * 1000 + tv.tv_usec / 1000);
+}
+
+
+void precise_sleep(int ms)
+{
+    long start = get_time_ms();
+    long now;
+    
+    while (1)
+    {
+        now = get_time_ms();
+        if (now - start >= ms)
+            break;
+        usleep(500);
+    }
+}
+
+
+void	print_status(t_philo *philo, char *status)
+{
+	long	time;
+
+	mutex_lock(&philo->data->sim_mutex);
+	if (philo->data->sim_end)
+	{
+		mutex_unlock(&philo->data->sim_mutex);
+		return ;
+	}
+	mutex_unlock(&philo->data->sim_mutex);
+	time = get_time_ms() - philo->data->start_time;
+	mutex_lock(&philo->data->print_mutex);
+	printf("%ld %d %s\n", time, philo->id, status);
+	mutex_unlock(&philo->data->print_mutex);
+}
+
+
+void	cleanup_data(t_data *data)
+{
+	int	i;
+
+	i = -1;
+	while (++i < data->num_philos)
+	{
+		mutex_destroy(&data->philos[i].meal_mutex);
+		mutex_destroy(&data->forks[i]);
+	}
+	mutex_destroy(&data->sim_mutex);
+	mutex_destroy(&data->print_mutex);
+	free(data->philos);
+	free(data->forks);
+}
+
+// Add these functions
+bool simulation_ended(t_data *data)
+{
+    bool ended;
+    
+    pthread_mutex_lock(&data->sim_mutex);
+    ended = data->sim_end;
+    pthread_mutex_unlock(&data->sim_mutex);
+    return ended;
+}
+
+void safe_unlock(t_mutex *mutex1, t_mutex *mutex2)
+{
+    if (mutex1 && mutex1 != mutex2) 
+        pthread_mutex_unlock(mutex1);
+    if (mutex2 && mutex1 != mutex2) 
+        pthread_mutex_unlock(mutex2);
 }

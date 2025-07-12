@@ -1,114 +1,74 @@
-/* ************************************************************************** */
-/*                                                                            */
-/*                                                        :::      ::::::::   */
-/*   philo.h                                            :+:      :+:    :+:   */
-/*                                                    +:+ +:+         +:+     */
-/*   By: nhaber <nhaber@student.42.fr>              +#+  +:+       +#+        */
-/*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2025/06/27 19:18:03 by nhaber            #+#    #+#             */
-/*   Updated: 2025/07/12 12:59:32 by nhaber           ###   ########.fr       */
-/*                                                                            */
-/* ************************************************************************** */
-
-
 #ifndef PHILO_H
 # define PHILO_H
 
 # include <pthread.h>
 # include <sys/time.h>
-#include <limits.h>
-# include <stdbool.h>
 # include <unistd.h>
-#include <errno.h>
 # include <stdlib.h>
 # include <stdio.h>
-#define DEBU_STAT 0
-typedef pthread_mutex_t mtx;
-typedef struct s_philo t_philo;
+# include <stdbool.h>
+# include <limits.h>
 
-typedef struct s_fork {
-	mtx fork;
-	int	fork_id;
-} t_fork;
+typedef struct s_philo	t_philo;
+typedef pthread_mutex_t	t_mutex;
 
-typedef struct s_data
-{
-	long 	num_philo;
-	long	ttd;
-	long	tte;
-	long	tts;
-	long	num_meals;
-	long	sim_start;
-	bool	sim_end;
-	bool	threads_sync;
-	t_fork	*forks;
-	t_philo	*philos;
-	mtx		data_mutex;
-	mtx		wrt_mutex;
-}t_data;
+typedef struct s_data {
+	int				num_philos;
+	int				time_to_die;
+	int				time_to_eat;
+	int				time_to_sleep;
+	int				num_meals;
+	long			start_time;
+	bool			sim_end;
+	t_mutex			sim_mutex;
+	t_mutex			*forks;
+	t_mutex			print_mutex;
+	t_philo			*philos;
+}	t_data;
 
+struct s_philo {
+	int				id;
+	pthread_t		thread;
+	int				meals_eaten;
+	long			last_meal;
+	t_mutex			meal_mutex;
+	t_mutex			*left_fork;
+	t_mutex			*right_fork;
+	t_data			*data;
+};
 
+// Parsing
+bool	parse_args(t_data *data, int argc, char **argv);
 
-typedef struct s_philo {
-	int			id;
-	long		meal_counter;
-	bool		full;
-	t_fork		*primray;
-	t_fork		*secondary;
-	pthread_t	thread_id;
-	long	last_meal_t;
-	t_data		*data;
-	mtx			philo_mutex;
-} t_philo;
+// Initialization
+bool	init_data(t_data *data);
+bool	init_philos(t_data *data);
 
-typedef enum s_opcode
-{
-	LOCK,
-	UNLOCK,
-	INIT,
-	DESTROY,
-	CREATE,
-	JOIN,
-	DETACH,
-} t_opcode;
+// Time
+long	get_time_ms(void);
+void	precise_sleep(int ms);
 
-typedef enum e_stat
-{
-	EATING,
-	SLEEPING,
-	THINKING,
-	TAKE_FIRST,
-	TAKE_SECOND,
-	DIED	
-}	t_philo_stat;
+// Threads
+void	start_simulation(t_data *data);
+void	*philo_routine(void *arg);
 
+// Monitoring
+void	*monitor_routine(void *arg);
 
-long get_timestamp(void);
-bool parse_input(t_data *data, char **argv);
-long   ft_atol(const char *str);
-bool	ft_isdigit(int c);
-const char *is_valid(const char *str);
-void *handle_malloc(size_t size);
-void handle_mutex(mtx *mutex, t_opcode opcode);
-static void handle_error(int status, t_opcode opcode);
-static bool handle_error_helper(int status,t_opcode opcode);
-static void thread_error(int status, t_opcode opcode);
-static bool thread_error_helper(int status, t_opcode opcode);
-void handle_thread(pthread_t *thread,void *(*foo)(void *)
-                ,void *data, t_opcode opcode);
-void init_data(t_data *data);
-static void init_philo(t_data *data);
-static void take_forks(t_philo *philo,t_fork *forks,int pos);
-void set_boolean(mtx *mutex,bool *dest,bool val);
-bool get_boolean(mtx *mutex,bool *val);
-void set_long(mtx *mutex,long *dest,long val);
-long get_long(mtx *mutex,long *val);
-bool    sim_finished(t_data *data);
-void thread_wait(t_data *data);
-long get_timestamp(void);
-void    ft_usleep(long usec,t_data *data);
-void    wrt_stat(t_philo_stat stat,t_philo *philo,bool debug);
-void philo_eat(t_philo *philo);
-void philo_think(t_philo *philo);
-void start_simulation(t_data *data);
+// Printing
+void	print_status(t_philo *philo, char *status);
+
+// Mutex utils
+void	mutex_init(t_mutex *mutex);
+void	mutex_destroy(t_mutex *mutex);
+void	mutex_lock(t_mutex *mutex);
+void	mutex_unlock(t_mutex *mutex);
+
+// Cleanup
+void	cleanup_data(t_data *data);
+
+// Add these declarations
+bool simulation_ended(t_data *data);
+void safe_unlock(t_mutex *mutex1, t_mutex *mutex2);
+
 #endif

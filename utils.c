@@ -1,43 +1,44 @@
-/* ************************************************************************** */
-/*                                                                            */
-/*                                                        :::      ::::::::   */
-/*   utils.c                                            :+:      :+:    :+:   */
-/*                                                    +:+ +:+         +:+     */
-/*   By: nhaber <nhaber@student.42.fr>              +#+  +:+       +#+        */
-/*                                                +#+#+#+#+#+   +#+           */
-/*   Created: 2025/06/30 10:14:20 by nhaber            #+#    #+#             */
-/*   Updated: 2025/07/12 12:59:49 by nhaber           ###   ########.fr       */
-/*                                                                            */
-/* ************************************************************************** */
-
 #include "philo.h"
 
-long get_timestamp(void)
+bool	ft_isdigit(int c)
 {
-    struct timeval tv;
-
-    gettimeofday(&tv, NULL);
-    return (tv.tv_sec * 1000) + (tv.tv_usec / 1000);
+	return (c >= '0' && c <= '9');
 }
 
-void    ft_usleep(long usec,t_data *data)
+bool	ft_isspace(char c)
 {
-    long    start;
-    long elapsed;
-    long rem;
-    start = (get_timestamp() / 1000);
-    while ((get_timestamp() / 1000) - start < usec)
-    {
-        if (sim_finished(data))
-            break;
-        elapsed = (get_timestamp() / 1000) - start;
-        rem = usec - elapsed;
-        if (rem > 1000)
-            usleep(usec / 2);
-        else
-        {
-            while ((get_timestamp() / 1000) - start < usec)
-                ;
-        }
-    }
+	return (c == ' ' || (c >= 9 && c <= 13));
 }
+
+long	ft_atol(const char *str)
+{
+	long	result;
+	int		sign;
+
+	result = 0;
+	sign = 1;
+	while (*str && ft_isspace(*str))
+		str++;
+	if (*str == '-')
+		return (LONG_MAX);
+	if (*str == '+')
+		str++;
+	while (*str && ft_isdigit(*str))
+	{
+		result = result * 10 + (*str - '0');
+		if (result > INT_MAX)
+			return (LONG_MAX);
+		str++;
+	}
+	return (result * sign);
+}
+
+// bool	simulation_ended(t_data *data)
+// {
+// 	bool	ended;
+
+// 	mutex_lock(&data->sim_mutex);
+// 	ended = data->sim_end;
+// 	mutex_unlock(&data->sim_mutex);
+// 	return (ended);
+// }
