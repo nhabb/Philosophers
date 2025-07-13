@@ -11,8 +11,8 @@ bool	parse_args(t_data *data, int argc, char **argv)
 	else
 		data->num_meals = -1;
 	
-	if (data->num_philos <= 0 || data->num_philos > 200 ||
-		data->time_to_die < 60 || data->time_to_eat < 60 ||
+	if (data->num_philos <= 0 || data->time_to_die < 60 
+        || data->time_to_eat < 60 ||
 		data->time_to_sleep < 60 || (argc == 6 && data->num_meals <= 0))
 	{
 		printf("Invalid arguments\n");
