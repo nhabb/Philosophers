@@ -47,7 +47,7 @@ bool	init_philos(t_data *data);
 // Time
 long	get_time_ms(void);
 void	precise_sleep(int ms);
-
+long	ft_atol(const char *str);
 // Threads
 void	start_simulation(t_data *data);
 void	*philo_routine(void *arg);
