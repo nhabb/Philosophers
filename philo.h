@@ -54,6 +54,7 @@ void	*philo_routine(void *arg);
 
 // Monitoring
 void	*monitor_routine(void *arg);
+int check_death(t_data *data,int current_time,int last_meal,int i);
 
 // Printing
 void	print_status(t_philo *philo, char *status);
@@ -66,8 +67,8 @@ void	mutex_unlock(t_mutex *mutex);
 
 // Cleanup
 void	cleanup_data(t_data *data);
-
-// Add these declarations
+int	monitor_helper(t_data *data, long current_time, bool *all_full);
+int check_full(t_data *data,bool all_full);
 bool simulation_ended(t_data *data);
 void safe_unlock(t_mutex *mutex1, t_mutex *mutex2);
 
